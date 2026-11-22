@@ -1,0 +1,9 @@
+node_modules/
+client/dist/
+server/dist/
+data/
+.env
+.bun-cache/
+*.tsbuildinfo
+
+*.tsbuildinfo
