@@ -16,6 +16,7 @@ import {
   DECKS,
   FELTS,
   LEVELS,
+  castById,
   levelForPoints,
   nextLevel,
   unlockedFelts,
@@ -927,21 +928,30 @@ export function App() {
     <div className="mx-auto min-h-dvh w-full max-w-xl px-4 pb-10">
       {view === "home" && (
         <section className="pt-6 text-center">
-          <p className="text-sm font-black tracking-[0.3em] uppercase text-[var(--dim)]">
-            C.F.N.B. Presents
-          </p>
-          <h1 className="mt-1 text-5xl font-black tracking-tight text-[var(--text)]">
-            Family Fun
-          </h1>
-          <p className="mt-1 text-xl font-black text-[var(--text)]">
-            Pitty Pat or Tunk
-          </p>
-          <p className="mt-1 text-base font-bold text-[var(--dim)]">
-            Your Move — bet points, not money.
-          </p>
-          <p className="mt-1 text-sm font-bold text-[var(--dim)]">
-            Created by Albert Q. Lightfoot
-          </p>
+          <img
+            src="/cover.jpg"
+            alt="C.F.N.B. Presents — Family Fun — Pitty Pat or Tunk — Your Move"
+            className="mx-auto w-full max-w-sm rounded-3xl shadow"
+          />
+          <div className="mx-auto mt-4 flex max-w-sm justify-center gap-4">
+            {["dee", "marcus", "trey"].map((id) => {
+              const c = castById(id);
+              return (
+                <div key={id} className="w-20 text-center">
+                  {c.img && (
+                    <img
+                      src={c.img}
+                      alt={c.name}
+                      className="mx-auto h-16 w-16 rounded-full object-cover shadow"
+                    />
+                  )}
+                  <p className="mt-1 text-xs font-black text-[var(--text)]">
+                    {c.name}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
 
           <div className="mx-auto mt-4 max-w-sm rounded-3xl bg-[var(--surface)] p-4 shadow">
             <p className="text-sm font-bold text-[var(--dim)]">
