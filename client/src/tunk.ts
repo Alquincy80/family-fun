@@ -79,6 +79,21 @@ export const MATCH_TARGET_1V1 = 150;
 export const MATCH_TARGET_4P = 300;
 export const NATURAL_TUNK_TOTAL = 50;
 
+// Quick-talk phrases for Family Room table chat — the exact list the
+// server's word filter allows through for under-13 players.
+export const QUICK_TALK: string[] = [
+  "Good game!",
+  "Nice play!",
+  "You got me that time!",
+  "Let's go again!",
+  "Tunk! Fifty!",
+  "I dropped!",
+  "Watch my spreads!",
+  "Good luck, family!",
+  "That was a close one!",
+  "Your move!",
+];
+
 /** Aces count low (1) for runs; Q-K-A is not a run. */
 function runValue(c: CardT): number {
   return c.rank === 14 ? 1 : c.rank;

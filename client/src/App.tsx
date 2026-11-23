@@ -10,6 +10,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { api, type ApiResponse } from "./api";
 import type { Actions } from "../../server/src/actions";
 import { TunkTable } from "./TunkTable";
+import { ChatPanel } from "./ChatPanel";
+import { VoicePanel } from "./VoicePanel";
 import {
   DECKS,
   FELTS,
@@ -25,6 +27,8 @@ type Profile = ApiResponse<typeof Actions, "getProfile">;
 type View =
   | "home"
   | "game"
+  | "rooms"
+  | "roomGame"
   | "account"
   | "store"
   | "rewards"
@@ -175,11 +179,32 @@ function PrivacyScreen({ onBack }: { onBack: () => void }) {
             email alquincy80@gmail.com.
           </p>
         </PolicySection>
+        <PolicySection title="Voice chat">
+          <p>
+            In Family Rooms you can tap Join voice to talk live with the
+            family at your table. Your voice goes straight from your device
+            to theirs over a peer-to-peer WebRTC connection — it is not
+            recorded and not stored by the game. Your microphone only opens
+            after you tap Join voice. The short signaling messages that set
+            up the call are short-lived and carry no audio. Under-13
+            accounts cannot join voice.
+          </p>
+        </PolicySection>
+        <PolicySection title="Family Room chat">
+          <p>
+            Messages you send in a Family Room are checked by a word filter
+            before they post, and are kept only so the family at that table
+            can read them. Under-13 accounts chat with quick-talk phrases
+            only. Reports about a player can lead to strikes and a 24-hour
+            cool-down from chat and voice.
+          </p>
+        </PolicySection>
         <PolicySection title="Deleting your account">
           <p>
             You can delete your account in the game (My Account → Delete my
             account). That permanently removes your account, your progress,
-            your purchases, and your Stripe payment records. Other
+            your purchases, your Stripe payment records, your room chat
+            messages, and any reports about you. Other
             players&apos; data is not touched.
           </p>
         </PolicySection>
@@ -232,6 +257,19 @@ function TermsScreen({ onBack }: { onBack: () => void }) {
             happened.
           </p>
         </PolicySection>
+        <PolicySection title="Keep It Cool">
+          <p>
+            Keep it family-friendly at the table and on voice — no cussing,
+            insults, disrespect, or bullying. Table chat is checked by a
+            word filter before it posts; voice goes straight between devices
+            and can&apos;t be filtered before it&apos;s heard, so the same
+            rules ride on respect, with mute, silence, block, and report
+            controls in your hands. Reports add up: three reports add a
+            strike, and repeat strikes bring a 24-hour cool-down from chat
+            and voice. Players under 13 use quick-talk phrases only and no
+            voice chat.
+          </p>
+        </PolicySection>
         <PolicySection title="Your account">
           <p>
             You need an account to save progress across devices and to buy
@@ -274,6 +312,15 @@ function SafetyScreen({ onBack }: { onBack: () => void }) {
             Under-13 accounts cannot buy anything in the Store. Parents can
             ask for an account to be deleted any time — email
             alquincy80@gmail.com.
+          </p>
+        </PolicySection>
+        <PolicySection title="Chat and voice in Family Rooms">
+          <p>
+            Voice and chat in Family Rooms follow the same Keep It Cool
+            rules as the table. You can mute your own mic, silence any
+            player for yourself, block a player&apos;s messages on your
+            device, or report anyone who breaks the rules — reports add up
+            to strikes and a 24-hour cool-down.
           </p>
         </PolicySection>
         <PolicySection title="If something feels wrong">
@@ -347,7 +394,270 @@ function HowScreen({ onBack }: { onBack: () => void }) {
             on the home screen for the whole ladder.
           </p>
         </PolicySection>
+        <PolicySection title="Family Rooms">
+          <p>
+            Make a private room and share the 6-letter code — family tap
+            Family Rooms, type the code in, and they&apos;re at your table.
+            The table itself plays on this device, with computer players
+            filling the open seats; the room code, the seat list, table chat,
+            and voice chat are the live shared parts.
+          </p>
+          <p>
+            Table chat is checked by a word filter before it posts, and
+            under-13 players chat with quick-talk phrases only. Voice chat
+            is in Family Rooms only — tap Join voice to talk live; your
+            voice goes straight between devices and is not recorded. You
+            can mute your mic, silence any player for yourself, or report
+            anyone who breaks the Keep It Cool rules.
+          </p>
+        </PolicySection>
       </div>
+    </section>
+  );
+}
+
+// ---------- Family Rooms ----------
+
+interface RoomConfig {
+  code: string;
+  playerCount: 2 | 4;
+  displayName: string;
+}
+
+interface RoomSeat {
+  name: string;
+  kind: string;
+}
+
+function FamilyRooms(props: {
+  displayName: string;
+  onBack: () => void;
+  onStart: (cfg: RoomConfig) => void;
+}) {
+  const [name, setName] = useState(
+    props.displayName === "You" ? "" : props.displayName,
+  );
+  const [playerCount, setPlayerCount] = useState<2 | 4>(2);
+  const [code, setCode] = useState<string | null>(null);
+  const [joinCode, setJoinCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [seats, setSeats] = useState<RoomSeat[]>([]);
+  const [roomPlayerCount, setRoomPlayerCount] = useState<2 | 4>(2);
+
+  // Poll the lobby while we're in it, so seats fill in as family join.
+  useEffect(() => {
+    if (!code) return;
+    const roomCode = code;
+    let cancelled = false;
+    async function fetchRoom() {
+      try {
+        const res = await api.getRoom({ code: roomCode });
+        if (cancelled) return;
+        if (res.found) {
+          setSeats(res.seats);
+          setRoomPlayerCount(res.playerCount === 4 ? 4 : 2);
+        }
+      } catch {
+        /* next poll in 3s picks it up */
+      }
+    }
+    void fetchRoom();
+    const t = window.setInterval(() => void fetchRoom(), 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [code]);
+
+  const myName = name.trim();
+
+  async function create() {
+    if (!myName || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.createRoom({ hostName: myName, playerCount });
+      if (res.code) {
+        setRoomPlayerCount(playerCount);
+        setSeats([]);
+        setCode(res.code);
+      } else {
+        setError(res.error ?? "Could not create the room.");
+      }
+    } catch {
+      setError("Could not create the room — try again in a second.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function join() {
+    if (!myName || joinCode.trim().length !== 6 || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.joinRoom({
+        code: joinCode.trim().toUpperCase(),
+        name: myName,
+      });
+      if (res.ok) {
+        setRoomPlayerCount(res.playerCount === 4 ? 4 : 2);
+        setSeats(res.seats);
+        setCode(joinCode.trim().toUpperCase());
+      } else {
+        setError(res.error ?? "Could not join that room.");
+      }
+    } catch {
+      setError("Could not join that room — try again in a second.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const tableSize = code ? roomPlayerCount : playerCount;
+
+  return (
+    <section className="pt-4">
+      <BackBar title="Family Rooms" onBack={props.onBack} />
+      <p className="mt-1 text-sm text-[var(--dim)]">
+        Make a private room, share the 6-letter code, and the family joins
+        from any device. The table plays on this device with the computer in
+        the open seats — the room code, seats, table chat, and voice chat are
+        the live shared parts.
+      </p>
+
+      {!code && (
+        <div className="mt-4 rounded-3xl bg-[var(--surface)] p-4 shadow">
+          <label className="block text-sm font-black text-[var(--text)]" htmlFor="room-name">
+            Your table name
+          </label>
+          <input
+            id="room-name"
+            className="mt-1 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-base text-[var(--text)]"
+            placeholder="e.g. Uncle Al"
+            value={name}
+            maxLength={40}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="Room table size">
+            {([2, 4] as const).map((pc) => (
+              <button
+                key={pc}
+                type="button"
+                aria-pressed={playerCount === pc}
+                onClick={() => setPlayerCount(pc)}
+                className={`rounded-2xl py-2.5 text-sm font-black ${
+                  playerCount === pc
+                    ? "bg-[#14532d] text-white"
+                    : "bg-[var(--bg)] text-[var(--text)]"
+                }`}
+              >
+                {pc}-player table
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={!myName || busy}
+            onClick={() => void create()}
+            className="mt-3 w-full rounded-full bg-[#ff6b4a] py-3 text-base font-black text-white disabled:opacity-40"
+          >
+            Create my room
+          </button>
+          <div className="my-4 flex items-center gap-3 text-xs font-black uppercase tracking-wide text-[var(--dim)]">
+            <span className="h-px flex-1 bg-[var(--border)]" /> or join{" "}
+            <span className="h-px flex-1 bg-[var(--border)]" />
+          </div>
+          <label className="block text-sm font-black text-[var(--text)]" htmlFor="join-code">
+            Room code
+          </label>
+          <div className="mt-1 flex gap-2">
+            <input
+              id="join-code"
+              className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5 text-base font-black uppercase tracking-[0.3em] text-[var(--text)]"
+              placeholder="ABCDEF"
+              value={joinCode}
+              maxLength={6}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            />
+            <button
+              type="button"
+              disabled={!myName || joinCode.trim().length !== 6 || busy}
+              onClick={() => void join()}
+              className="shrink-0 rounded-full bg-[#14532d] px-5 py-2.5 text-sm font-black text-white disabled:opacity-40"
+            >
+              Join room
+            </button>
+          </div>
+          {error && (
+            <p className="mt-3 rounded-lg bg-[#fee2e2] px-3 py-2 text-sm font-semibold text-[#7f1d1d]" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+
+      {code && (
+        <div className="mt-4 rounded-3xl bg-[#14532d] p-5 text-center shadow-xl">
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-[#f5b942]">
+            Your room code
+          </p>
+          <p className="mt-1 text-5xl font-black tracking-[0.2em] text-white">
+            {code}
+          </p>
+          <p className="mt-2 text-sm font-semibold text-white/85">
+            Tell the family this code — they tap Family Rooms, type it in, and
+            they&apos;re at your table.
+          </p>
+          <div className="mt-4 space-y-2 text-left">
+            {Array.from({ length: tableSize }).map((_, i) => {
+              const seat = seats[i];
+              return (
+                <p
+                  key={i}
+                  className="rounded-xl bg-black/30 px-3 py-2 text-sm font-bold text-white"
+                >
+                  Seat {i + 1}:{" "}
+                  {seat
+                    ? `${seat.name} (family)`
+                    : "Computer player fills this seat"}
+                </p>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="mt-4 w-full rounded-full bg-[#ff6b4a] py-3.5 text-lg font-black text-white"
+            onClick={() =>
+              props.onStart({
+                code,
+                playerCount: tableSize,
+                displayName: myName,
+              })
+            }
+          >
+            Start the game ▶
+          </button>
+          <button
+            type="button"
+            className="mt-2 w-full rounded-full bg-white/15 py-2.5 text-sm font-black text-white"
+            onClick={() => {
+              setCode(null);
+              setSeats([]);
+              setError(null);
+            }}
+          >
+            Leave lobby
+          </button>
+          <p className="mt-3 text-xs text-white/70">
+            Heads-up: the room code, seats, and chat are live now. The table
+            plays on this device with the computer in the open seats — family
+            on other devices join the room to chat and talk, and watch the
+            seats fill in.
+          </p>
+        </div>
+      )}
     </section>
   );
 }
@@ -396,6 +706,7 @@ export function App() {
     handsWon: number;
     handsPlayed: number;
   } | null>(null);
+  const [roomGame, setRoomGame] = useState<RoomConfig | null>(null);
 
   const signedIn = Boolean(token && profile?.ok);
   const lifetimePoints = signedIn
@@ -511,6 +822,7 @@ export function App() {
     handsPlayed: number;
   }) {
     setLastMatch(result);
+    setRoomGame(null);
     if (token) {
       try {
         await api.recordMatchResult({
@@ -709,6 +1021,13 @@ export function App() {
             </button>
             <button
               type="button"
+              onClick={() => setView("rooms")}
+              className="col-span-2 rounded-2xl bg-[var(--surface)] px-4 py-3 text-base font-black text-[var(--text)] shadow"
+            >
+              👨‍👩‍👧‍👦 Family Rooms — play with family, chat &amp; voice
+            </button>
+            <button
+              type="button"
               onClick={() => setView("rewards")}
               className="rounded-2xl bg-amber-500 px-4 py-3 text-base font-black text-white shadow"
             >
@@ -781,6 +1100,55 @@ export function App() {
           onMatchEnd={handleMatchEnd}
           onLeave={() => setView("home")}
         />
+      )}
+
+      {view === "rooms" && (
+        <FamilyRooms
+          displayName={humanName}
+          onBack={() => setView("home")}
+          onStart={(cfg) => {
+            setRoomGame(cfg);
+            setLastMatch(null);
+            setView("roomGame");
+          }}
+        />
+      )}
+
+      {view === "roomGame" && roomGame && (
+        <div>
+          <TunkTable
+            playerCount={roomGame.playerCount}
+            humanName={roomGame.displayName}
+            deckId={deckId}
+            feltId={feltId}
+            lifetimePoints={lifetimePoints}
+            onMatchEnd={handleMatchEnd}
+            onLeave={() => {
+              setRoomGame(null);
+              setView("home");
+            }}
+          />
+          <section className="mt-4 space-y-3 pb-4">
+            <h2 className="text-xl font-black text-[var(--text)]">
+              Table chat &amp; voice — room {roomGame.code}
+            </h2>
+            <article className="rounded-3xl bg-[var(--surface)] p-4 shadow">
+              <ChatPanel
+                roomCode={roomGame.code}
+                token={token}
+                displayName={roomGame.displayName}
+                under13={profile?.under13 ?? false}
+              />
+            </article>
+            <article className="rounded-3xl bg-[var(--surface)] p-4 shadow">
+              <VoicePanel
+                roomCode={roomGame.code}
+                token={token}
+                displayName={roomGame.displayName}
+              />
+            </article>
+          </section>
+        </div>
       )}
 
       {view === "rewards" && (
