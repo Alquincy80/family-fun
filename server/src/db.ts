@@ -70,6 +70,47 @@ export async function migrate(): Promise<void> {
       "created_at" timestamp DEFAULT now() NOT NULL,
       CONSTRAINT "stripe_payments_session_id_unique" UNIQUE("session_id")
     )`,
+    // Family Rooms + voice chat (0002). The ALTERs backfill the two
+    // moderation columns onto accounts rows created before 0002 — the
+    // live Neon accounts table already exists without them.
+    `ALTER TABLE "accounts" ADD COLUMN IF NOT EXISTS "strikes" integer DEFAULT 0 NOT NULL`,
+    `ALTER TABLE "accounts" ADD COLUMN IF NOT EXISTS "muted_until" bigint`,
+    `CREATE TABLE IF NOT EXISTS "rooms" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "code" text NOT NULL,
+      "host_name" text NOT NULL,
+      "seats" text DEFAULT '[]' NOT NULL,
+      "player_count" integer DEFAULT 4 NOT NULL,
+      "status" text DEFAULT 'open' NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      CONSTRAINT "rooms_code_unique" UNIQUE("code")
+    )`,
+    `CREATE TABLE IF NOT EXISTS "messages" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "scope" text NOT NULL,
+      "room_code" text,
+      "author_name" text NOT NULL,
+      "author_email" text,
+      "body" text NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS "voice_signals" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "room_code" text NOT NULL,
+      "from_client" text NOT NULL,
+      "to_client" text NOT NULL,
+      "kind" text NOT NULL,
+      "payload" text DEFAULT '' NOT NULL,
+      "created_at" bigint NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS "reports" (
+      "id" serial PRIMARY KEY NOT NULL,
+      "reporter_name" text NOT NULL,
+      "target_name" text NOT NULL,
+      "reason" text NOT NULL,
+      "scope" text DEFAULT 'room' NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    )`,
   ];
   // Both drivers expose the same query surface through drizzle's session.
   // Use a raw SQL executor: neon-http via sql template, pglite via execute.

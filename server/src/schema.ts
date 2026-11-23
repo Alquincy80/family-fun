@@ -5,6 +5,7 @@
 // or cashed out. There is no real-money gambling in this game.
 
 import {
+  bigint,
   integer,
   pgTable,
   serial,
@@ -20,6 +21,59 @@ export const accounts = pgTable("accounts", {
   passHash: text("pass_hash").notNull(),
   birthYear: integer("birth_year").notNull(),
   token: text("token").notNull(),
+  strikes: integer("strikes").notNull().default(0),
+  mutedUntil: bigint("muted_until", { mode: "number" }),
+  createdAt: timestamp("created_at")
+    .notNull()
+    .defaultNow()
+    .$defaultFn(() => new Date()),
+});
+
+export const rooms = pgTable("rooms", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  hostName: text("host_name").notNull(),
+  seats: text("seats").notNull().default("[]"),
+  playerCount: integer("player_count").notNull().default(4),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at")
+    .notNull()
+    .defaultNow()
+    .$defaultFn(() => new Date()),
+});
+
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  scope: text("scope").notNull(),
+  roomCode: text("room_code"),
+  authorName: text("author_name").notNull(),
+  authorEmail: text("author_email"),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at")
+    .notNull()
+    .defaultNow()
+    .$defaultFn(() => new Date()),
+});
+
+// WebRTC voice-chat signaling relay: short-lived rows (presence heartbeats,
+// SDP offers/answers, ICE candidates, leaves) that voice clients in the same
+// Family Room poll for. Audio itself flows peer-to-peer, never through here.
+export const voiceSignals = pgTable("voice_signals", {
+  id: serial("id").primaryKey(),
+  roomCode: text("room_code").notNull(),
+  fromClient: text("from_client").notNull(),
+  toClient: text("to_client").notNull(),
+  kind: text("kind").notNull(),
+  payload: text("payload").notNull().default(""),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
+export const reports = pgTable("reports", {
+  id: serial("id").primaryKey(),
+  reporterName: text("reporter_name").notNull(),
+  targetName: text("target_name").notNull(),
+  reason: text("reason").notNull(),
+  scope: text("scope").notNull().default("room"),
   createdAt: timestamp("created_at")
     .notNull()
     .defaultNow()
