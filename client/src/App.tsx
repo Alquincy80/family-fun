@@ -162,13 +162,15 @@ function PrivacyScreen({ onBack }: { onBack: () => void }) {
         </PolicySection>
         <PolicySection title="What we do NOT do">
           <p>
-            No third-party ads and no ad tracking — the only ads are the
-            game&apos;s own house ads for the Family Fun Pass and optional
-            rewarded house videos, shown between games, never during a
-            hand. No ad network is connected yet. No data is sold to
-            anyone, and the game does not collect your location, your
-            contacts, or your photos. Points are never bought, sold, or
-            cashed out.
+            The game may show its own house ads and, for eligible
+            players, ads from Google AdSense. Google AdSense code is
+            installed so Google can review the site and serve and measure
+            ads; Google may use cookies or device information for that
+            under Google&apos;s own policies. Ads are shown between
+            games, never during a hand, and under-13 accounts are not
+            shown rewarded ads. No data is sold to anyone, and the game
+            does not collect your location, your contacts, or your
+            photos. Points are never bought, sold, or cashed out.
           </p>
         </PolicySection>
         <PolicySection title="On your device">
