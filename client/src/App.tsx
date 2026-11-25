@@ -11,6 +11,7 @@ import { api, type ApiResponse } from "./api";
 import type { Actions } from "../../server/src/actions";
 import { TunkTable } from "./TunkTable";
 import { PittyPatTable } from "./PittyPatTable";
+import { BannerAd } from "./AdSlot";
 import { DEFAULT_PITTY_PAT_RULES } from "./pittypat";
 import { ChatPanel } from "./ChatPanel";
 import { VoicePanel } from "./VoicePanel";
@@ -161,10 +162,12 @@ function PrivacyScreen({ onBack }: { onBack: () => void }) {
         <PolicySection title="What we do NOT do">
           <p>
             No third-party ads and no ad tracking — the only ads are the
-            game&apos;s own house ads for the Family Fun Pass, shown between
-            games, never during a hand. No data is sold to anyone, and the
-            game does not collect your location, your contacts, or your
-            photos. Points are never bought, sold, or cashed out.
+            game&apos;s own house ads for the Family Fun Pass and optional
+            rewarded house videos, shown between games, never during a
+            hand. No ad network is connected yet. No data is sold to
+            anyone, and the game does not collect your location, your
+            contacts, or your photos. Points are never bought, sold, or
+            cashed out.
           </p>
         </PolicySection>
         <PolicySection title="On your device">
@@ -236,9 +239,10 @@ function TermsScreen({ onBack }: { onBack: () => void }) {
             Tunk is a card game for points — first to 150 wins a 1v1 match,
             first to 300 wins a 4-player match. There is no real-money
             gambling, no betting with real money, and no cash prizes. Points
-            are earned by playing only: they cannot be bought, sold, or
-            turned into real money. Nothing you win in the game can be
-            turned into real money.
+            are earned by playing and by optional free rewarded house
+            videos: they cannot be bought, sold, or turned into real
+            money. Nothing you win in the game can be turned into real
+            money.
           </p>
         </PolicySection>
         <PolicySection title="Free and paid">
@@ -873,6 +877,29 @@ export function App() {
     setView("home");
   }
 
+  async function handleAdReward(): Promise<boolean> {
+    if (hasPass || hasRemoveAds || profile?.under13) return false;
+    if (token) {
+      try {
+        const r = await api.recordAdReward({ token });
+        if (!r.ok) return false;
+        const p = await api.getProfile({ token });
+        if (p.ok) setProfile(p);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    const nextGuest = guestPoints + 10;
+    setGuestPoints(nextGuest);
+    try {
+      localStorage.setItem(GUEST_POINTS_KEY, String(nextGuest));
+    } catch {
+      /* ignore */
+    }
+    return true;
+  }
+
   function equipDeck(id: string) {
     if (!earnedStyles.includes(id)) return;
     setDeckId(id);
@@ -1114,23 +1141,11 @@ export function App() {
             </button>
           </div>
 
-          {!hasPass && !hasRemoveAds && (
-            <div className="mx-auto mt-4 max-w-sm rounded-3xl border border-amber-300 bg-amber-50 p-3 text-left shadow">
-              <p className="text-sm font-black text-amber-900">
-                Family Fun Pass — $1.99 one time
-              </p>
-              <p className="text-xs font-bold text-amber-900/70">
-                Every card style and table theme, and no ads. Points are
-                never for sale — they are earned by playing.
-              </p>
-              <button
-                type="button"
-                onClick={() => setView("store")}
-                className="mt-2 rounded-full bg-amber-600 px-4 py-2 text-sm font-black text-white"
-              >
-                See the Store →
-              </button>
-            </div>
+          {!hasPass && !hasRemoveAds && !profile?.under13 && (
+            <BannerAd
+              onOpenStore={() => setView("store")}
+              onReward={handleAdReward}
+            />
           )}
 
           <Footer
@@ -1238,9 +1253,9 @@ export function App() {
           </p>
           <div className="mt-3 rounded-3xl bg-[var(--surface)] p-4 shadow">
             <p className="text-sm font-black text-[var(--text)]">
-              Rewards are earned free by playing. Points only — no purchases,
-              no cash prizes. Points can never be bought, sold, or cashed
-              out.
+              Rewards are earned free by playing and optional rewarded
+              house videos. Points only — no purchases, no cash prizes.
+              Points can never be bought, sold, or cashed out.
             </p>
             {next ? (
               <>
