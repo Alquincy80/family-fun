@@ -5,10 +5,11 @@
 // in-game voice chat, and the "Keep It Cool" moderated chat.
 //
 // POINTS ARE NEVER FOR SALE: no action here sells points, chips, or any
-// in-game currency. Points are earned by playing only — recordMatchResult
-// is the only way points move, and it only ever ADDS points a player won
-// at the table. Real money only ever buys the two Store products
-// (All-Access Pass, Remove Ads), which are cosmetic/perk purchases.
+// in-game currency. Points are earned by playing and by optional free
+// rewarded house ads — recordMatchResult adds points a player won at
+// the table, and recordAdReward adds the fixed free house-ad reward.
+// Real money only ever buys the two Store products (All-Access Pass,
+// Remove Ads), which are cosmetic/perk purchases.
 //
 // Moderation is word-filter-only: the banned-word list below is the gate,
 // and the strike / 24-hour cool-down rules are the same as C.F.N.B.
@@ -388,6 +389,58 @@ export const Actions = {
       }
       ctx.invalidateQueries();
       return { ok: true };
+    },
+  }),
+
+  recordAdReward: defineAction({
+    description:
+      "Adds the fixed free house-ad reward after a rewarded house video. Points are never bought; this only adds the free reward and does not change match or hand counts.",
+    request: z.object({ token: z.string().min(1) }),
+    response: z.object({ ok: z.boolean(), points: z.number() }),
+    async handler(ctx, args) {
+      const db = ctx.db();
+      const acct = await accountByToken(ctx, args.token);
+      if (!acct) return { ok: false, points: 0 };
+      if (isUnder13(acct.birthYear)) return { ok: false, points: 0 };
+      const buys = await db
+        .select()
+        .from(schema.purchases)
+        .where(eq(schema.purchases.accountId, acct.id));
+      if (
+        buys.some(
+          (b) => b.product === "tunk_pass" || b.product === "remove_ads",
+        )
+      ) {
+        return { ok: false, points: 0 };
+      }
+      const rows = await db
+        .select()
+        .from(schema.progress)
+        .where(eq(schema.progress.accountId, acct.id))
+        .limit(1);
+      const prog = rows[0];
+      const points = (prog?.points ?? 0) + 10;
+      const values = {
+        points,
+        totalWins: prog?.totalWins ?? 0,
+        matchesWon: prog?.matchesWon ?? 0,
+        matchesPlayed: prog?.matchesPlayed ?? 0,
+        handsPlayed: prog?.handsPlayed ?? 0,
+        handsWon: prog?.handsWon ?? 0,
+        updatedAt: new Date(),
+      };
+      if (prog) {
+        await db
+          .update(schema.progress)
+          .set(values)
+          .where(eq(schema.progress.id, prog.id));
+      } else {
+        await db
+          .insert(schema.progress)
+          .values({ accountId: acct.id, ...values });
+      }
+      ctx.invalidateQueries();
+      return { ok: true, points };
     },
   }),
 
