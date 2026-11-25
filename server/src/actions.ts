@@ -8,8 +8,8 @@
 // in-game currency. Points are earned by playing and by optional free
 // rewarded house ads — recordMatchResult adds points a player won at
 // the table, and recordAdReward adds the fixed free house-ad reward.
-// Real money only ever buys the two Store products (All-Access Pass,
-// Remove Ads), which are cosmetic/perk purchases.
+// Real money only ever buys Store products (passes, cosmetics, and
+// ad removal), which are cosmetic/perk purchases.
 //
 // Moderation is word-filter-only: the banned-word list below is the gate,
 // and the strike / 24-hour cool-down rules are the same as C.F.N.B.
@@ -32,6 +32,14 @@ const CURRENT_YEAR = 2026;
 
 const UNDER13_NO_BUY =
   "Players under 13 can't buy things — ask a parent or guardian.";
+
+const PRODUCT_ENUM = z.enum([
+  "remove_ads",
+  "royal_cosmetics_pack",
+  "tunk_pass",
+  "family_host_pack",
+  "founders_bundle",
+]);
 
 function isUnder13(birthYear: number): boolean {
   return CURRENT_YEAR - birthYear < 13;
@@ -100,6 +108,9 @@ const profileResponse = z.object({
   handsWon: z.number(),
   hasTunkPass: z.boolean(),
   hasRemoveAds: z.boolean(),
+  hasRoyalCosmetics: z.boolean(),
+  hasFamilyHostPack: z.boolean(),
+  hasFoundersBundle: z.boolean(),
 });
 
 type Profile = z.infer<typeof profileResponse>;
@@ -118,6 +129,9 @@ const emptyProfile = (error: string | null): Profile => ({
   handsWon: 0,
   hasTunkPass: false,
   hasRemoveAds: false,
+  hasRoyalCosmetics: false,
+  hasFamilyHostPack: false,
+  hasFoundersBundle: false,
 });
 
 async function loadProfile(ctx: Ctx, token: string): Promise<Profile> {
@@ -139,6 +153,14 @@ async function loadProfile(ctx: Ctx, token: string): Promise<Profile> {
     .select()
     .from(schema.purchases)
     .where(eq(schema.purchases.accountId, acct.id));
+  const owned = new Set(buys.map((b) => b.product));
+  const hasFoundersBundle = owned.has("founders_bundle");
+  const hasFamilyHostPack = owned.has("family_host_pack") || hasFoundersBundle;
+  const hasTunkPass = owned.has("tunk_pass") || hasFamilyHostPack;
+  const hasRoyalCosmetics =
+    owned.has("royal_cosmetics_pack") || hasFamilyHostPack;
+  const hasRemoveAds = owned.has("remove_ads") || hasTunkPass;
+
   return {
     ok: true,
     error: null,
@@ -151,10 +173,11 @@ async function loadProfile(ctx: Ctx, token: string): Promise<Profile> {
     matchesPlayed: prog?.matchesPlayed ?? 0,
     handsPlayed: prog?.handsPlayed ?? 0,
     handsWon: prog?.handsWon ?? 0,
-    hasTunkPass: buys.some((b) => b.product === "tunk_pass"),
-    hasRemoveAds:
-      buys.some((b) => b.product === "remove_ads") ||
-      buys.some((b) => b.product === "tunk_pass"),
+    hasTunkPass,
+    hasRemoveAds,
+    hasRoyalCosmetics,
+    hasFamilyHostPack,
+    hasFoundersBundle,
   };
 }
 
@@ -349,7 +372,7 @@ export const Actions = {
 
   recordMatchResult: defineAction({
     description:
-      "Saves a finished match to the player's account: lifetime points won, match win, and hands played/won. Points only ever move up here — they are earned at the table, never bought.",
+      "Saves a finished match to the player's account: lifetime points won (2x level progress if Founder's Bundle is owned), match win, and hands played/won. Points only ever move up here — they are earned at the table, never bought.",
     request: z.object({
       token: z.string().min(1),
       pointsWon: z.number().int().min(0).max(10000),
@@ -362,6 +385,12 @@ export const Actions = {
       const db = ctx.db();
       const acct = await accountByToken(ctx, args.token);
       if (!acct) return { ok: false };
+      const buys = await db
+        .select()
+        .from(schema.purchases)
+        .where(eq(schema.purchases.accountId, acct.id));
+      const hasFounders = buys.some((b) => b.product === "founders_bundle");
+      const earnedPoints = hasFounders ? args.pointsWon * 2 : args.pointsWon;
       const rows = await db
         .select()
         .from(schema.progress)
@@ -369,7 +398,7 @@ export const Actions = {
         .limit(1);
       const prog = rows[0];
       const values = {
-        points: (prog?.points ?? 0) + args.pointsWon,
+        points: (prog?.points ?? 0) + earnedPoints,
         totalWins: (prog?.totalWins ?? 0) + (args.matchWon ? 1 : 0),
         matchesWon: (prog?.matchesWon ?? 0) + (args.matchWon ? 1 : 0),
         matchesPlayed: (prog?.matchesPlayed ?? 0) + 1,
@@ -394,7 +423,7 @@ export const Actions = {
 
   recordAdReward: defineAction({
     description:
-      "Adds the fixed free house-ad reward after a rewarded house video. Points are never bought; this only adds the free reward and does not change match or hand counts.",
+      "Adds the fixed +15 free house-ad reward after a rewarded video. Points are never bought; this only adds the free reward and does not change match or hand counts.",
     request: z.object({ token: z.string().min(1) }),
     response: z.object({ ok: z.boolean(), points: z.number() }),
     async handler(ctx, args) {
@@ -407,8 +436,10 @@ export const Actions = {
         .from(schema.purchases)
         .where(eq(schema.purchases.accountId, acct.id));
       if (
-        buys.some(
-          (b) => b.product === "tunk_pass" || b.product === "remove_ads",
+        buys.some((b) =>
+          ["tunk_pass", "remove_ads", "family_host_pack", "founders_bundle"].includes(
+            b.product,
+          ),
         )
       ) {
         return { ok: false, points: 0 };
@@ -419,7 +450,7 @@ export const Actions = {
         .where(eq(schema.progress.accountId, acct.id))
         .limit(1);
       const prog = rows[0];
-      const points = (prog?.points ?? 0) + 10;
+      const points = (prog?.points ?? 0) + 15;
       const values = {
         points,
         totalWins: prog?.totalWins ?? 0,
@@ -449,7 +480,7 @@ export const Actions = {
       "Completes a store purchase in Stripe test mode (test card 4242 only, no real charge) and unlocks the product on the player's account. When live Stripe is configured, test buys are refused — real payments go through Stripe Checkout instead. Points are never sold here.",
     request: z.object({
       token: z.string().min(1),
-      product: z.enum(["tunk_pass", "remove_ads"]),
+      product: PRODUCT_ENUM,
       cardNumber: z.string().min(12).max(23),
     }),
     response: z.object({ ok: z.boolean(), error: z.string().nullable() }),
@@ -506,7 +537,7 @@ export const Actions = {
       "Starts a real Stripe Checkout Session for a store product and returns Stripe's hosted checkout URL. Only works when live Stripe is configured; otherwise it reports that live payments are not set up yet and nothing is unlocked.",
     request: z.object({
       token: z.string().min(1),
-      product: z.enum(["tunk_pass", "remove_ads"]),
+      product: PRODUCT_ENUM,
       origin: z.string().min(1).max(200),
     }),
     response: z.object({
@@ -597,7 +628,7 @@ export const Actions = {
     response: z.object({
       ok: z.boolean(),
       error: z.string().nullable(),
-      product: z.enum(["tunk_pass", "remove_ads"]).nullable(),
+      product: PRODUCT_ENUM.nullable(),
     }),
     async handler(ctx, args) {
       if (!isLiveStripe()) {
