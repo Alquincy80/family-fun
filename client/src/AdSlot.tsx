@@ -1,17 +1,79 @@
-// House ad slot for Family Fun.
+// Ad slot for Family Fun.
 //
-// This is the in-game house version: a banner for the Family Fun Pass
-// and an optional rewarded house video. No third-party ad network is
-// connected yet and there is no ad tracking. When a real network is
-// chosen, swap the video source / SDK in here and keep the same
-// reward flow: watch between games, claim the free points, never
-// during a hand. Players with the Pass or Remove Ads never see this.
+// Google H5 Games Ads is wired below for the paying rewarded path:
+// set ADSENSE_PUBLISHER_ID to Al's ca-pub ID after AdSense H5 approval
+// and the Watch ad button will call Google's Ad Placement API. Until
+// that ID is set, the house fallback runs (Pass banner + rewarded
+// house video) and no outside ad revenue is earned. Before setting
+// the ID, update the Privacy Policy for third-party ads. Players with
+// the Pass or Remove Ads never see this; the parent also hides it for
+// under-13 accounts.
 
 import { useEffect, useState } from "react";
 
 export const AD_REWARD_POINTS = 10;
+const ADSENSE_PUBLISHER_ID = "";
+const GOOGLE_H5_ENABLED = ADSENSE_PUBLISHER_ID.startsWith("ca-pub-");
 const REWARD_COOLDOWN_MS = 60 * 60 * 1000;
 const REWARD_KEY = "family-fun-ad-reward-at";
+
+type AdBreakConfig = {
+  type: string;
+  name: string;
+  beforeAd?: () => void;
+  afterAd?: () => void;
+  beforeReward?: (showAdFn: () => void) => void;
+  adDismissed?: () => void;
+  adViewed?: () => void;
+  adBreakDone?: (placementInfo: unknown) => void;
+};
+
+declare global {
+  interface Window {
+    adsbygoogle?: unknown[];
+    adBreak?: (config: AdBreakConfig) => void;
+    adConfig?: (config: unknown) => void;
+  }
+}
+
+function loadGoogleH5(): boolean {
+  if (!GOOGLE_H5_ENABLED) return false;
+  if (window.adBreak) return true;
+  window.adsbygoogle = window.adsbygoogle || [];
+  const push = (config: unknown) => {
+    window.adsbygoogle?.push(config);
+  };
+  window.adBreak = push;
+  window.adConfig = push;
+  const script = document.createElement("script");
+  script.async = true;
+  script.crossOrigin = "anonymous";
+  script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_PUBLISHER_ID}`;
+  document.head.appendChild(script);
+  return true;
+}
+
+function showGoogleRewarded(): Promise<boolean> {
+  if (!loadGoogleH5() || !window.adBreak) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve(ok);
+    };
+    const timer = window.setTimeout(() => done(false), 20000);
+    window.adBreak?.({
+      type: "reward",
+      name: "family-fun-rewarded-points",
+      beforeReward: (showAdFn) => showAdFn(),
+      adViewed: () => done(true),
+      adDismissed: () => done(false),
+      adBreakDone: () => done(false),
+    });
+  });
+}
 
 function rewardReadyAt(): number {
   try {
@@ -41,6 +103,10 @@ export function BannerAd(props: {
     : 0;
 
   useEffect(() => {
+    loadGoogleH5();
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     setSecondsLeft(10);
     setCanClaim(false);
@@ -59,30 +125,59 @@ export function BannerAd(props: {
     return () => window.clearInterval(timer);
   }, [open]);
 
-  async function claimReward() {
-    if (!canClaim || claiming || claimed) return;
-    setClaiming(true);
-    setMessage(null);
+  async function grantReward(): Promise<boolean> {
     const ok = await props.onReward();
-    setClaiming(false);
-    if (!ok) {
-      setMessage("Could not add the points — try again in a second.");
-      return;
-    }
+    if (!ok) return false;
     try {
       localStorage.setItem(REWARD_KEY, String(Date.now()));
     } catch {
       /* cooldown just will not persist */
     }
     setReadyAt(rewardReadyAt());
+    return true;
+  }
+
+  async function claimReward() {
+    if (!canClaim || claiming || claimed) return;
+    setClaiming(true);
+    setMessage(null);
+    const ok = await grantReward();
+    setClaiming(false);
+    if (!ok) {
+      setMessage("Could not add the points — try again in a second.");
+      return;
+    }
     setClaimed(true);
+  }
+
+  async function watchAd() {
+    if (coolingDown || claiming) return;
+    setMessage(null);
+    if (GOOGLE_H5_ENABLED) {
+      setClaiming(true);
+      const viewed = await showGoogleRewarded();
+      if (!viewed) {
+        setClaiming(false);
+        setMessage("No ad available right now — try again later.");
+        return;
+      }
+      const ok = await grantReward();
+      setClaiming(false);
+      setMessage(
+        ok
+          ? `Done — +${AD_REWARD_POINTS} points added.`
+          : "Could not add the points — try again in a second.",
+      );
+      return;
+    }
+    setOpen(true);
   }
 
   return (
     <>
       <div className="mx-auto mt-4 max-w-sm rounded-3xl border border-amber-300 bg-amber-50 p-3 text-left shadow">
         <p className="text-[11px] font-black uppercase tracking-wide text-amber-700">
-          House ad
+          {GOOGLE_H5_ENABLED ? "Ad" : "House ad"}
         </p>
         <p className="mt-1 text-sm font-black text-amber-900">
           Family Fun Pass — $1.99 one time
@@ -101,15 +196,22 @@ export function BannerAd(props: {
           </button>
           <button
             type="button"
-            disabled={coolingDown}
-            onClick={() => setOpen(true)}
+            disabled={coolingDown || claiming}
+            onClick={() => void watchAd()}
             className="rounded-full bg-[#14532d] px-4 py-2 text-sm font-black text-white disabled:opacity-40"
           >
             {coolingDown
               ? `Reward in ${cooldownMinutes} min`
-              : `Watch ad · +${AD_REWARD_POINTS} points`}
+              : claiming && GOOGLE_H5_ENABLED
+                ? "Loading ad…"
+                : `Watch ad · +${AD_REWARD_POINTS} points`}
           </button>
         </div>
+        {message && !open && (
+          <p className="mt-2 text-xs font-bold text-amber-900/80" role="status">
+            {message}
+          </p>
+        )}
       </div>
 
       {open && (
