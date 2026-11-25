@@ -11,8 +11,9 @@
 // 4242 test flow exactly as before.
 //
 // POINTS ARE NEVER FOR SALE: no product here sells points, chips, or any
-// in-game currency. Points are earned by playing only. The products below
-// are cosmetic/perk purchases only (card styles, table themes, no ads).
+// in-game currency. Points are earned by playing and by optional free
+// rewarded ads. The products below are cosmetic/perk purchases only
+// (card styles, table themes, no ads).
 
 import Stripe from "stripe";
 
@@ -26,7 +27,7 @@ export const PRODUCTS: Record<
     amountCents: 199,
     name: "Family Fun Pass",
     description:
-      "Every card style and table theme, and ads removed for good. One-time payment. Points are never for sale — they are earned by playing.",
+      "Every card style and table theme, and ads removed for good. One-time payment. Points are never for sale.",
   },
   remove_ads: {
     amountCents: 99,
@@ -55,9 +56,10 @@ export function getStripe(): Stripe | null {
   return stripeClient;
 }
 
-// The Render service name for this game is tunk-game (see render.yaml).
-// Update this list if the game is ever served from a different domain.
+// The live Render service for this game is family-fun. Update this list
+// if the game is ever served from a different domain.
 const ALLOWED_ORIGINS = new Set([
+  "https://family-fun-9j1b.onrender.com",
   "https://tunk-game.onrender.com",
   "http://localhost:3000",
   "http://localhost:5173",
