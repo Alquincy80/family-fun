@@ -11,10 +11,10 @@
 
 import { useEffect, useState } from "react";
 
-export const AD_REWARD_POINTS = 10;
+export const AD_REWARD_POINTS = 15;
 const ADSENSE_PUBLISHER_ID = "";
 const GOOGLE_H5_ENABLED = ADSENSE_PUBLISHER_ID.startsWith("ca-pub-");
-const REWARD_COOLDOWN_MS = 60 * 60 * 1000;
+const REWARD_COOLDOWN_MS = 15 * 60 * 1000;
 const REWARD_KEY = "family-fun-ad-reward-at";
 
 type AdBreakConfig = {
@@ -270,5 +270,61 @@ export function BannerAd(props: {
         </div>
       )}
     </>
+  );
+}
+
+export function InterstitialAdModal(props: {
+  open: boolean;
+  onClose: () => void;
+  onOpenStore: () => void;
+}) {
+  const [seconds, setSeconds] = useState(5);
+
+  useEffect(() => {
+    if (!props.open) return;
+    setSeconds(5);
+    const t = window.setInterval(() => {
+      setSeconds((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [props.open]);
+
+  if (!props.open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+      <div className="w-full max-w-sm rounded-3xl bg-[var(--surface)] p-5 text-center shadow-2xl">
+        <p className="text-[11px] font-black uppercase tracking-wider text-amber-700">
+          Between-Match Break
+        </p>
+        <h3 className="mt-1 text-xl font-black text-[var(--text)]">
+          Upgrade to VIP &amp; Play Ad-Free
+        </h3>
+        <p className="mt-2 text-sm text-[var(--dim)]">
+          Remove all ads forever for <strong>$0.99</strong>, or unlock every
+          deck, table &amp; VIP badge with the <strong>Family Fun Pass ($1.99)</strong>.
+        </p>
+        <div className="mt-4 space-y-2">
+          <button
+            type="button"
+            onClick={() => {
+              props.onClose();
+              props.onOpenStore();
+            }}
+            className="w-full rounded-2xl bg-emerald-700 px-4 py-3 text-base font-black text-white shadow"
+          >
+            Skip Forever — Remove Ads ($0.99)
+          </button>
+          <button
+            type="button"
+            disabled={seconds > 0}
+            onClick={props.onClose}
+            className="w-full rounded-2xl bg-black/10 px-4 py-2.5 text-sm font-black text-[var(--text)] disabled:opacity-45"
+          >
+            {seconds > 0 ? `Continue in ${seconds}s…` : "Continue to Lobby"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

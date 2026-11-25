@@ -11,7 +11,8 @@ import { api, type ApiResponse } from "./api";
 import type { Actions } from "../../server/src/actions";
 import { TunkTable } from "./TunkTable";
 import { PittyPatTable } from "./PittyPatTable";
-import { BannerAd } from "./AdSlot";
+import { BannerAd, InterstitialAdModal } from "./AdSlot";
+import type { ProductId } from "../../server/src/stripe";
 import { DEFAULT_PITTY_PAT_RULES } from "./pittypat";
 import { ChatPanel } from "./ChatPanel";
 import { VoicePanel } from "./VoicePanel";
@@ -735,6 +736,8 @@ export function App() {
     handsPlayed: number;
   } | null>(null);
   const [roomGame, setRoomGame] = useState<RoomConfig | null>(null);
+  const [matchesCompletedSession, setMatchesCompletedSession] = useState(0);
+  const [showInterstitial, setShowInterstitial] = useState(false);
 
   const signedIn = Boolean(token && profile?.ok);
   const lifetimePoints = signedIn
@@ -743,10 +746,24 @@ export function App() {
   const matchesWon = signedIn ? (profile?.matchesWon ?? 0) : 0;
   const hasPass = Boolean(profile?.hasTunkPass);
   const hasRemoveAds = Boolean(profile?.hasRemoveAds);
+  const hasRoyalCosmetics = Boolean(profile?.hasRoyalCosmetics);
+  const hasFamilyHostPack = Boolean(profile?.hasFamilyHostPack);
+  const hasFoundersBundle = Boolean(profile?.hasFoundersBundle);
   const level = levelForPoints(lifetimePoints);
   const next = nextLevel(lifetimePoints);
-  const earnedStyles = unlockedStyles(lifetimePoints, matchesWon, hasPass);
-  const earnedFelts = unlockedFelts(lifetimePoints, hasPass);
+  const earnedStyles = unlockedStyles(
+    lifetimePoints,
+    matchesWon,
+    hasPass,
+    hasRoyalCosmetics,
+    hasFoundersBundle,
+  );
+  const earnedFelts = unlockedFelts(
+    lifetimePoints,
+    hasPass,
+    hasRoyalCosmetics,
+    hasFoundersBundle,
+  );
 
   // Load the profile for a saved session, and the store status.
   useEffect(() => {
@@ -850,6 +867,11 @@ export function App() {
     handsPlayed: number;
   }) {
     setLastMatch(result);
+    const nextCount = matchesCompletedSession + 1;
+    setMatchesCompletedSession(nextCount);
+    if (!hasRemoveAds && !profile?.under13 && nextCount % 2 === 0) {
+      setShowInterstitial(true);
+    }
     setRoomGame(null);
     if (token) {
       try {
@@ -890,7 +912,7 @@ export function App() {
         return false;
       }
     }
-    const nextGuest = guestPoints + 10;
+    const nextGuest = guestPoints + 15;
     setGuestPoints(nextGuest);
     try {
       localStorage.setItem(GUEST_POINTS_KEY, String(nextGuest));
@@ -920,7 +942,7 @@ export function App() {
     }
   }
 
-  async function buy(product: "tunk_pass" | "remove_ads") {
+  async function buy(product: ProductId) {
     setStoreMsg(null);
     if (!token) {
       setStoreMsg("Sign in first, then buy.");
@@ -1053,6 +1075,24 @@ export function App() {
                 ? `You won the match! +${lastMatch.pointsWon} points.`
                 : `Match over — you won ${lastMatch.pointsWon} points this match.`}{" "}
               Hands: {lastMatch.handsWon}/{lastMatch.handsPlayed} won.
+            </div>
+          )}
+
+          {lastMatch && !hasPass && !profile?.under13 && (
+            <div className="mx-auto mt-2 max-w-sm rounded-3xl border border-amber-300 bg-amber-50 p-3 text-left shadow">
+              <p className="text-xs font-black uppercase tracking-wide text-amber-800">
+                {hasFoundersBundle ? "2x Founder XP Active" : "Level Up Faster & Go Ad-Free"}
+              </p>
+              <p className="mt-0.5 text-xs font-bold text-amber-950/80">
+                Unlock all decks, custom tables, and zero ads with the Family Fun Pass ($1.99) or 2x XP with the Founder&apos;s Bundle ($9.99).
+              </p>
+              <button
+                type="button"
+                onClick={() => setView("store")}
+                className="mt-2 rounded-full bg-amber-600 px-3.5 py-1.5 text-xs font-black text-white"
+              >
+                See VIP Bundles →
+              </button>
             </div>
           )}
 
@@ -1332,13 +1372,12 @@ export function App() {
                 <button
                   key={d.id}
                   type="button"
-                  disabled={!earned}
-                  onClick={() => equipDeck(d.id)}
+                  onClick={() => (earned ? equipDeck(d.id) : setView("store"))}
                   className={`rounded-2xl p-3 text-left shadow ${
                     inUse
                       ? "bg-[var(--surface)] ring-2 ring-amber-500"
                       : "bg-[var(--surface)]"
-                  } ${earned ? "" : "opacity-55"}`}
+                  } ${earned ? "" : "opacity-80"}`}
                 >
                   <span
                     className="block h-12 w-full rounded-lg border border-black/20"
@@ -1350,7 +1389,7 @@ export function App() {
                     {inUse ? " · in use" : ""}
                   </span>
                   <span className="block text-xs font-bold text-[var(--dim)]">
-                    {earned ? "Earned — tap to use" : d.how}
+                    {earned ? "Earned — tap to use" : `${d.how} · Tap to unlock`}
                   </span>
                 </button>
               );
@@ -1368,13 +1407,12 @@ export function App() {
                 <button
                   key={f.id}
                   type="button"
-                  disabled={!earned}
-                  onClick={() => equipFelt(f.id)}
+                  onClick={() => (earned ? equipFelt(f.id) : setView("store"))}
                   className={`rounded-2xl p-3 text-left shadow ${
                     inUse
                       ? "bg-[var(--surface)] ring-2 ring-amber-500"
                       : "bg-[var(--surface)]"
-                  } ${earned ? "" : "opacity-55"}`}
+                  } ${earned ? "" : "opacity-80"}`}
                 >
                   <span
                     className="block h-12 w-full rounded-lg border border-black/20"
@@ -1386,17 +1424,21 @@ export function App() {
                     {inUse ? " · in use" : ""}
                   </span>
                   <span className="block text-xs font-bold text-[var(--dim)]">
-                    {earned ? "Earned — tap to use" : f.how}
+                    {earned ? "Earned — tap to use" : `${f.how} · Tap to unlock`}
                   </span>
                 </button>
               );
             })}
           </div>
-          {hasPass && (
+          {hasFoundersBundle ? (
             <p className="mt-3 text-sm font-bold text-[var(--dim)]">
-              Family Fun Pass open — every style and theme is yours.
+              Founder&apos;s Bundle open — every style and theme is yours.
             </p>
-          )}
+          ) : hasPass ? (
+            <p className="mt-3 text-sm font-bold text-[var(--dim)]">
+              Family Fun Pass open — every standard style and theme is yours.
+            </p>
+          ) : null}
         </section>
       )}
 
@@ -1418,13 +1460,12 @@ export function App() {
                 <button
                   key={d.id}
                   type="button"
-                  disabled={!earned}
-                  onClick={() => equipDeck(d.id)}
+                  onClick={() => (earned ? equipDeck(d.id) : setView("store"))}
                   className={`rounded-2xl p-3 text-left shadow ${
                     inUse
                       ? "bg-[var(--surface)] ring-2 ring-amber-500"
                       : "bg-[var(--surface)]"
-                  } ${earned ? "" : "opacity-55"}`}
+                  } ${earned ? "" : "opacity-80"}`}
                 >
                   <span
                     className="block h-12 w-full rounded-lg border border-black/20"
@@ -1436,7 +1477,7 @@ export function App() {
                     {inUse ? " · in use" : ""}
                   </span>
                   <span className="block text-xs font-bold text-[var(--dim)]">
-                    {earned ? "Earned — tap to use" : d.how}
+                    {earned ? "Earned — tap to use" : `${d.how} · Tap to unlock`}
                   </span>
                 </button>
               );
@@ -1453,13 +1494,12 @@ export function App() {
                 <button
                   key={f.id}
                   type="button"
-                  disabled={!earned}
-                  onClick={() => equipFelt(f.id)}
+                  onClick={() => (earned ? equipFelt(f.id) : setView("store"))}
                   className={`rounded-2xl p-3 text-left shadow ${
                     inUse
                       ? "bg-[var(--surface)] ring-2 ring-amber-500"
                       : "bg-[var(--surface)]"
-                  } ${earned ? "" : "opacity-55"}`}
+                  } ${earned ? "" : "opacity-80"}`}
                 >
                   <span
                     className="block h-12 w-full rounded-lg border border-black/20"
@@ -1471,7 +1511,7 @@ export function App() {
                     {inUse ? " · in use" : ""}
                   </span>
                   <span className="block text-xs font-bold text-[var(--dim)]">
-                    {earned ? "Earned — tap to use" : f.how}
+                    {earned ? "Earned — tap to use" : `${f.how} · Tap to unlock`}
                   </span>
                 </button>
               );
@@ -1503,13 +1543,55 @@ export function App() {
             </p>
           )}
           <div className="mt-4 space-y-3">
+            <article className="rounded-3xl border-2 border-amber-500 bg-[var(--surface)] p-4 shadow">
+              <span className="rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-black uppercase text-white">
+                Best Value · Lifetime VIP
+              </span>
+              <h3 className="mt-1 text-base font-black text-[var(--text)]">
+                C.F.N.B. Founder&apos;s Lifetime Bundle — $9.99
+              </h3>
+              <p className="mt-1 text-sm text-[var(--dim)]">
+                Unlocks every current &amp; future card deck and table theme, VIP Crown badge, 2x level XP boost, and lifetime ad-free play. One-time payment.
+              </p>
+              <button
+                type="button"
+                disabled={!signedIn || hasFoundersBundle || profile?.under13}
+                onClick={() => buy("founders_bundle")}
+                className="mt-3 w-full rounded-2xl bg-amber-600 px-4 py-3 text-base font-black text-white shadow disabled:opacity-40"
+              >
+                {hasFoundersBundle
+                  ? "Founder's Bundle Active ✓"
+                  : profile?.under13
+                    ? "Under 13 — can't buy"
+                    : "Buy Founder's Bundle — $9.99"}
+              </button>
+            </article>
+            <article className="rounded-3xl bg-[var(--surface)] p-4 shadow">
+              <h3 className="text-base font-black text-[var(--text)]">
+                Family Host Pack — $4.99
+              </h3>
+              <p className="mt-1 text-sm text-[var(--dim)]">
+                Everything in the Family Fun Pass plus exclusive Royal Velvet &amp; Gold cosmetics and VIP Host status in Family Rooms. One-time payment.
+              </p>
+              <button
+                type="button"
+                disabled={!signedIn || hasFamilyHostPack || profile?.under13}
+                onClick={() => buy("family_host_pack")}
+                className="mt-3 w-full rounded-2xl bg-emerald-700 px-4 py-3 text-base font-black text-white shadow disabled:opacity-40"
+              >
+                {hasFamilyHostPack
+                  ? "Family Host Pack Owned ✓"
+                  : profile?.under13
+                    ? "Under 13 — can't buy"
+                    : "Buy Family Host Pack — $4.99"}
+              </button>
+            </article>
             <article className="rounded-3xl bg-[var(--surface)] p-4 shadow">
               <h3 className="text-base font-black text-[var(--text)]">
                 Family Fun Pass — $1.99
               </h3>
               <p className="mt-1 text-sm text-[var(--dim)]">
-                Every card style and table theme, and ads removed for good.
-                One-time payment.
+                All standard card styles and table themes, plus ads removed for good. One-time payment.
               </p>
               <button
                 type="button"
@@ -1522,6 +1604,26 @@ export function App() {
                   : profile?.under13
                     ? "Under 13 — can't buy"
                     : "Buy the Pass — $1.99"}
+              </button>
+            </article>
+            <article className="rounded-3xl bg-[var(--surface)] p-4 shadow">
+              <h3 className="text-base font-black text-[var(--text)]">
+                Royal Felt &amp; Deck Pack — $1.49
+              </h3>
+              <p className="mt-1 text-sm text-[var(--dim)]">
+                Unlocks the exclusive Royal Velvet &amp; Gold card backs and matching Royal Velvet Lounge table. One-time payment.
+              </p>
+              <button
+                type="button"
+                disabled={!signedIn || hasRoyalCosmetics || profile?.under13}
+                onClick={() => buy("royal_cosmetics_pack")}
+                className="mt-3 w-full rounded-2xl bg-emerald-700 px-4 py-3 text-base font-black text-white shadow disabled:opacity-40"
+              >
+                {hasRoyalCosmetics
+                  ? "Royal Pack Owned ✓"
+                  : profile?.under13
+                    ? "Under 13 — can't buy"
+                    : "Buy Royal Pack — $1.49"}
               </button>
             </article>
             <article className="rounded-3xl bg-[var(--surface)] p-4 shadow">
@@ -1759,6 +1861,11 @@ export function App() {
       )}
       {view === "terms" && <TermsScreen onBack={() => setView("home")} />}
       {view === "safety" && <SafetyScreen onBack={() => setView("home")} />}
+      <InterstitialAdModal
+        open={showInterstitial}
+        onClose={() => setShowInterstitial(false)}
+        onOpenStore={() => setView("store")}
+      />
     </div>
   );
 }

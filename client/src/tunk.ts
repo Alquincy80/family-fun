@@ -338,6 +338,20 @@ export const DECKS: DeckStyle[] = [
   { id: "win1", name: "First Win Gold Trim", back: "repeating-linear-gradient(45deg,#3f3f46 0 10px,#71717a 10px 20px)", face: "#FFF8EC", how: "Win any 1 match" },
   { id: "win5", name: "Veteran Stripes", back: "repeating-linear-gradient(90deg,#581c87 0 12px,#7e22ce 12px 24px)", face: "#FBF5FF", how: "Win any 5 matches" },
   { id: "win10", name: "Five-Star Table", back: "repeating-linear-gradient(90deg,#0f172a 0 12px,#b91c1c 12px 24px)", face: "#FFF8EC", how: "Win any 10 matches" },
+  {
+    id: "royal-velvet",
+    name: "Royal Velvet & Gold",
+    back: "repeating-linear-gradient(45deg,#4c1d95 0 10px,#d97706 10px 14px,#5b21b6 14px 24px)",
+    face: "#FFFDF5",
+    how: "Royal Pack, Family Host Pack, or Founder's Bundle",
+  },
+  {
+    id: "founders-diamond",
+    name: "C.F.N.B. Founder's Foil",
+    back: "radial-gradient(circle at 50% 50%, #fbbf24 0%, #78350f 65%, #1c1917 100%)",
+    face: "#FFFBEB",
+    how: "C.F.N.B. Founder's Lifetime Bundle",
+  },
 ];
 
 export const FELTS: { id: string; name: string; css: string; how: string }[] = [
@@ -345,6 +359,18 @@ export const FELTS: { id: string; name: string; css: string; how: string }[] = [
   { id: "porch", name: "Porch Boards", css: "repeating-linear-gradient(90deg,#8a5a33 0 34px,#7c4f2b 34px 68px)", how: "Reach Level 4 (150 points won)" },
   { id: "sunset", name: "Cookout Sunset", css: "radial-gradient(ellipse at center, #b45309 0%, #7c2d12 75%)", how: "Reach Level 6 (500 points won)" },
   { id: "head-table", name: "Head Table Black & Gold", css: "radial-gradient(ellipse at center, #292524 0%, #0c0a09 70%), repeating-linear-gradient(45deg, transparent 0 18px, rgba(245,185,66,.15) 18px 20px)", how: "Reach Level 9 (1,500 points won)" },
+  {
+    id: "royal-velvet-felt",
+    name: "Royal Velvet Lounge",
+    css: "radial-gradient(ellipse at center, #581c87 0%, #2e1065 75%)",
+    how: "Royal Pack, Family Host Pack, or Founder's Bundle",
+  },
+  {
+    id: "founders-gold-felt",
+    name: "C.F.N.B. Founder's Table",
+    css: "radial-gradient(ellipse at center, #451a03 0%, #09090b 80%), repeating-linear-gradient(45deg, transparent 0 16px, rgba(251,191,36,0.18) 16px 18px)",
+    how: "C.F.N.B. Founder's Lifetime Bundle",
+  },
 ];
 
 export interface Level {
@@ -385,9 +411,17 @@ export function unlockedStyles(
   lifetimePoints: number,
   matchesWon: number,
   hasPass: boolean,
+  hasRoyalCosmetics = false,
+  hasFoundersBundle = false,
 ): string[] {
-  if (hasPass) return DECKS.map((d) => d.id);
+  if (hasFoundersBundle) return DECKS.map((d) => d.id);
   const out = new Set<string>(["house"]);
+  if (hasPass) {
+    for (const d of DECKS) {
+      if (d.id !== "royal-velvet" && d.id !== "founders-diamond") out.add(d.id);
+    }
+  }
+  if (hasRoyalCosmetics) out.add("royal-velvet");
   if (lifetimePoints >= 25) out.add("classic");
   if (lifetimePoints >= 75) out.add("crimson");
   if (lifetimePoints >= 300) out.add("diamond");
@@ -403,9 +437,19 @@ export function unlockedStyles(
 export function unlockedFelts(
   lifetimePoints: number,
   hasPass: boolean,
+  hasRoyalCosmetics = false,
+  hasFoundersBundle = false,
 ): string[] {
-  if (hasPass) return FELTS.map((f) => f.id);
+  if (hasFoundersBundle) return FELTS.map((f) => f.id);
   const out = new Set<string>(["classic-green"]);
+  if (hasPass) {
+    for (const f of FELTS) {
+      if (f.id !== "royal-velvet-felt" && f.id !== "founders-gold-felt") {
+        out.add(f.id);
+      }
+    }
+  }
+  if (hasRoyalCosmetics) out.add("royal-velvet-felt");
   if (lifetimePoints >= 150) out.add("porch");
   if (lifetimePoints >= 500) out.add("sunset");
   if (lifetimePoints >= 1500) out.add("head-table");
