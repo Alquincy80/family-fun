@@ -79,6 +79,18 @@ export const MATCH_TARGET_1V1 = 150;
 export const MATCH_TARGET_4P = 300;
 export const NATURAL_TUNK_TOTAL = 50;
 
+/** Points awarded by the Pitty Pat house incentives ("First Porter" and
+    "Last Low") when those rules are switched on. */
+export const INCENTIVE_BONUS = 10;
+
+/** Shared rule toggles. Pitty Pat reads include8910 from here. */
+export interface TunkRules {
+  /** When false, ranks 8, 9 and 10 are left out of the deck (40 cards). */
+  include8910: boolean;
+}
+
+export const DEFAULT_RULES: TunkRules = { include8910: true };
+
 // Quick-talk phrases for Family Room table chat — the exact list the
 // server's word filter allows through for under-13 players.
 export const QUICK_TALK: string[] = [
@@ -445,11 +457,14 @@ export interface HandState {
   handNumber: number;
 }
 
-export function buildDeck(): CardT[] {
+export function buildDeck(include8910: boolean = true): CardT[] {
   const suits: Suit[] = ["spades", "hearts", "diamonds", "clubs"];
   const cards: CardT[] = [];
   for (const s of suits) {
-    for (let r = 2; r <= 14; r++) cards.push({ suit: s, rank: r });
+    for (let r = 2; r <= 14; r++) {
+      if (!include8910 && (r === 8 || r === 9 || r === 10)) continue;
+      cards.push({ suit: s, rank: r });
+    }
   }
   return cards;
 }

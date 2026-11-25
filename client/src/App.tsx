@@ -10,6 +10,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { api, type ApiResponse } from "./api";
 import type { Actions } from "../../server/src/actions";
 import { TunkTable } from "./TunkTable";
+import { PittyPatTable } from "./PittyPatTable";
+import { DEFAULT_PITTY_PAT_RULES } from "./pittypat";
 import { ChatPanel } from "./ChatPanel";
 import { VoicePanel } from "./VoicePanel";
 import {
@@ -423,6 +425,7 @@ interface RoomConfig {
   code: string;
   playerCount: 2 | 4;
   displayName: string;
+  game: "tunk" | "pittypat";
 }
 
 interface RoomSeat {
@@ -439,6 +442,7 @@ function FamilyRooms(props: {
     props.displayName === "You" ? "" : props.displayName,
   );
   const [playerCount, setPlayerCount] = useState<2 | 4>(2);
+  const [game, setGame] = useState<"tunk" | "pittypat">("tunk");
   const [code, setCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -558,6 +562,23 @@ function FamilyRooms(props: {
               </button>
             ))}
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="Room game">
+            {(["tunk", "pittypat"] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={game === g}
+                onClick={() => setGame(g)}
+                className={`rounded-2xl py-2.5 text-sm font-black ${
+                  game === g
+                    ? "bg-[#14532d] text-white"
+                    : "bg-[var(--bg)] text-[var(--text)]"
+                }`}
+              >
+                {g === "tunk" ? "Tunk" : "Pitty Pat"}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             disabled={!myName || busy}
@@ -635,6 +656,7 @@ function FamilyRooms(props: {
                 code,
                 playerCount: tableSize,
                 displayName: myName,
+                game,
               })
             }
           >
@@ -675,6 +697,7 @@ export function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [gameMode, setGameMode] = useState<2 | 4>(2);
+  const [gameChoice, setGameChoice] = useState<"tunk" | "pittypat">("tunk");
   const [deckId, setDeckId] = useState<string>(() => {
     try {
       return localStorage.getItem(DECK_KEY) ?? "house";
@@ -1006,6 +1029,24 @@ export function App() {
             </div>
           )}
 
+          <div className="mx-auto mt-4 grid max-w-sm grid-cols-2 gap-2" role="group" aria-label="Pick a game">
+            {(["tunk", "pittypat"] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={gameChoice === g}
+                onClick={() => setGameChoice(g)}
+                className={`rounded-2xl py-3 text-base font-black shadow ${
+                  gameChoice === g
+                    ? "bg-[#14532d] text-white"
+                    : "bg-[var(--surface)] text-[var(--text)]"
+                }`}
+              >
+                {g === "tunk" ? "Tunk" : "Pitty Pat"}
+              </button>
+            ))}
+          </div>
+
           <div className="mx-auto mt-4 grid max-w-sm grid-cols-2 gap-2">
             <button
               type="button"
@@ -1016,7 +1057,7 @@ export function App() {
               }}
               className="col-span-2 rounded-2xl bg-emerald-700 px-4 py-3 text-lg font-black text-white shadow"
             >
-              Play 1v1 — You vs Dee
+              Play {gameChoice === "tunk" ? "Tunk" : "Pitty Pat"} 1v1 — You vs Dee
             </button>
             <button
               type="button"
@@ -1027,7 +1068,7 @@ export function App() {
               }}
               className="col-span-2 rounded-2xl bg-emerald-700 px-4 py-3 text-lg font-black text-white shadow"
             >
-              Play 4-Player — You vs Marcus, Dee &amp; Trey
+              Play {gameChoice === "tunk" ? "Tunk" : "Pitty Pat"} 4-Player — You vs Marcus, Dee &amp; Trey
             </button>
             <button
               type="button"
@@ -1100,13 +1141,25 @@ export function App() {
         </section>
       )}
 
-      {view === "game" && (
+      {view === "game" && gameChoice === "tunk" && (
         <TunkTable
           playerCount={gameMode}
           humanName={humanName}
           deckId={deckId}
           feltId={feltId}
           lifetimePoints={lifetimePoints}
+          onMatchEnd={handleMatchEnd}
+          onLeave={() => setView("home")}
+        />
+      )}
+
+      {view === "game" && gameChoice === "pittypat" && (
+        <PittyPatTable
+          playerCount={gameMode}
+          humanName={humanName}
+          deckId={deckId}
+          feltId={feltId}
+          rules={DEFAULT_PITTY_PAT_RULES}
           onMatchEnd={handleMatchEnd}
           onLeave={() => setView("home")}
         />
@@ -1126,18 +1179,33 @@ export function App() {
 
       {view === "roomGame" && roomGame && (
         <div>
-          <TunkTable
-            playerCount={roomGame.playerCount}
-            humanName={roomGame.displayName}
-            deckId={deckId}
-            feltId={feltId}
-            lifetimePoints={lifetimePoints}
-            onMatchEnd={handleMatchEnd}
-            onLeave={() => {
-              setRoomGame(null);
-              setView("home");
-            }}
-          />
+          {roomGame.game === "tunk" ? (
+            <TunkTable
+              playerCount={roomGame.playerCount}
+              humanName={roomGame.displayName}
+              deckId={deckId}
+              feltId={feltId}
+              lifetimePoints={lifetimePoints}
+              onMatchEnd={handleMatchEnd}
+              onLeave={() => {
+                setRoomGame(null);
+                setView("home");
+              }}
+            />
+          ) : (
+            <PittyPatTable
+              playerCount={roomGame.playerCount}
+              humanName={roomGame.displayName}
+              deckId={deckId}
+              feltId={feltId}
+              rules={DEFAULT_PITTY_PAT_RULES}
+              onMatchEnd={handleMatchEnd}
+              onLeave={() => {
+                setRoomGame(null);
+                setView("home");
+              }}
+            />
+          )}
           <section className="mt-4 space-y-3 pb-4">
             <h2 className="text-xl font-black text-[var(--text)]">
               Table chat &amp; voice — room {roomGame.code}
