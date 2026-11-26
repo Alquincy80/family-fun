@@ -720,6 +720,13 @@ export function App() {
     }
   });
   const [guestPoints, setGuestPoints] = useState<number>(loadGuestPoints);
+  useEffect(() => {
+    try {
+      localStorage.setItem(GUEST_POINTS_KEY, String(guestPoints));
+    } catch {
+      /* ignore */
+    }
+  }, [guestPoints]);
   const [storeLive, setStoreLive] = useState(false);
   const [storeMsg, setStoreMsg] = useState<string | null>(null);
   const [card, setCard] = useState("4242 4242 4242 4242");
@@ -890,13 +897,7 @@ export function App() {
         /* progress stays local-only if the save fails */
       }
     } else {
-      const nextGuest = guestPoints + result.pointsWon;
-      setGuestPoints(nextGuest);
-      try {
-        localStorage.setItem(GUEST_POINTS_KEY, String(nextGuest));
-      } catch {
-        /* ignore */
-      }
+      setGuestPoints((prev) => prev + result.pointsWon);
     }
     setView("home");
   }
@@ -914,13 +915,7 @@ export function App() {
         return false;
       }
     }
-    const nextGuest = guestPoints + 15;
-    setGuestPoints(nextGuest);
-    try {
-      localStorage.setItem(GUEST_POINTS_KEY, String(nextGuest));
-    } catch {
-      /* ignore */
-    }
+    setGuestPoints((prev) => prev + 15);
     return true;
   }
 

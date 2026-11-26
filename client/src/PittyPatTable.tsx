@@ -550,7 +550,7 @@ export function PittyPatTable(props: Props) {
           >
             {state.phase === "over"
               ? state.lastAction
-              : `${turnName}'s turn — ${
+              : `${humanTurn ? "Your" : `${turnName}'s`} turn — ${
                   state.phase === "draw"
                     ? "draw from the stock or the discard pile"
                     : "discard one card"
