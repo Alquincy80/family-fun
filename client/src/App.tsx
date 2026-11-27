@@ -116,6 +116,19 @@ function Footer({
           Stay Safe
         </button>
       </p>
+      <p className="mt-1 text-xs font-semibold text-[var(--dim)]">
+        <a className="underline" href="/how-to-play.html">
+          How to Play
+        </a>
+        {" · "}
+        <a className="underline" href="/about.html">
+          About
+        </a>
+        {" · "}
+        <a className="underline" href="/faq.html">
+          FAQ
+        </a>
+      </p>
       <p className="mt-1 text-xs text-[var(--dim)]">
         Family Fun — Pitty Pat or Tunk — made by Albert Q. Lightfoot. Questions? alquincy80@gmail.com
       </p>
@@ -254,8 +267,8 @@ function TermsScreen({ onBack }: { onBack: () => void }) {
             and Remove Ads is $0.99 one-time. Both are one-time payments —
             there is no subscription. Purchases are tied to your signed-in
             account and come back when you sign in on any device (Store →
-            Restore purchases). The Pass unlocks every card style and table
-            theme and removes ads; it never buys points.
+            Restore purchases). The Pass unlocks every standard card style
+            and table theme and removes ads; it never buys points.
           </p>
         </PolicySection>
         <PolicySection title="Refunds">
@@ -347,7 +360,7 @@ function SafetyScreen({ onBack }: { onBack: () => void }) {
 function HowScreen({ onBack }: { onBack: () => void }) {
   return (
     <section className="pt-4">
-      <BackBar title="How to Play Tunk" onBack={onBack} />
+      <BackBar title="How to Play" onBack={onBack} />
       <div className="mt-4 space-y-3">
         <PolicySection title="The deal">
           <p>
@@ -395,6 +408,19 @@ function HowScreen({ onBack }: { onBack: () => void }) {
             Everybody starts a match at 5 points — first to 150 wins a 1v1
             match, first to 300 wins a 4-player match. Hit 0 points and you
             get a free top-up back to 5 next hand, so nobody gets stuck.
+          </p>
+        </PolicySection>
+        <PolicySection title="Pitty Pat">
+          <p>
+            Pitty Pat is the pairing game: everybody gets 5 cards and the goal
+            is to hold three pairs. Pairs stay in your hand — being dealt three
+            pairs wins at once. On your turn, draw from the stock or the
+            discard pile, then discard one card. The moment your hand holds
+            three pairs, call Pitty Pat: the winner takes 15 points from each
+            loser, and nobody pays more than they have. First to 150 wins a
+            1v1 match; first to 300 wins a 4-player match. House toggles on
+            the table: Include 8–10 is on by default; First Porter +10 and
+            Last Low +10 are off unless your family turns them on.
           </p>
         </PolicySection>
         <PolicySection title="Levels and rewards">

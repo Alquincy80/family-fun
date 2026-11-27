@@ -183,8 +183,8 @@ export function BannerAd(props: {
           Family Fun Pass — $1.99 one time
         </p>
         <p className="text-xs font-bold text-amber-900/70">
-          Every card style and table theme, and no ads. Points are never
-          for sale.
+          Every standard card style and table theme, and no ads. Points
+          are never for sale.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <button
